@@ -160,39 +160,44 @@ def handle_search_face(data):
     return jsonify(result), 200
 
 def handle_clear_temp_images_id(data):
-    if not data or 'user_id' not in data:
+    if not data or 'userId' not in data:
         return jsonify(get_error_response('USER_ID_REQUIRED')), 200
-    user_id = data['user_id']
+    user_id = data['userId']
     redis_service.delete_temp_images(user_id)
     return jsonify({"success": True}), 200
 
-
-
-
-# debug
 def handle_clear_face_id(data):
-    if not data or 'user_id' not in data:
+    if not data or 'userId' not in data:
         return jsonify(get_error_response('USER_ID_REQUIRED')), 200
         
-    user_id = data['user_id']
-    user_role = data.get('user_role')
+    user_id = data['userId']
+    is_user = db_service.check_user_exists(user_id)
+    if not is_user:
+        return jsonify(get_error_response('USER_NOT_FOUND')), 200
     
-    # Kiểm tra quyền admin
-    module_info =  get_module_info(redis_service.client, user_role, "Timekeeping")
-    if not module_info:
-        return jsonify(get_error_response('MODULE_NOT_FOUND')), 200
-        
-    is_admin = is_user_admin(module_info)
-    if not is_admin and user_id != data.get('current_user_id'):
-        return jsonify(get_error_response('PERMISSION_DENIED')), 200
     
-    # Xóa face ID
-    result = redis_service.delete_cached_features(user_id)
-    if not result['success']:
-        return jsonify(result), 200
+    # user_role = data.get('user_role')
+    
+    try:
+        # # Kiểm tra quyền admin
+        # module_info = get_module_info(redis_service.client, user_role, "Timekeeping")
+        # if not module_info:
+        #     return jsonify(get_error_response('MODULE_NOT_FOUND')), 200
+
+        # is_admin = is_user_admin(module_info)
+        # if not is_admin and user_id != data.get('current_user_id'):
+        #     return jsonify(get_error_response('PERMISSION_DENIED')), 200
+        # Xóa face ID từ Redis
+        redis_success = redis_service.delete_cached_features(user_id)
+        if not redis_success:
+            return jsonify(get_error_response('REDIS_DELETE_ERROR')), 200
+            
+        # Xóa face ID từ database
+        db_success = db_service.delete_faceid_by_user_id(user_id)
+        if not db_success:
+            return jsonify(get_error_response('DB_DELETE_ERROR')), 200
+            
+        return jsonify({"success": True, "message": "Face ID cleared successfully"}), 200
         
-    result = db_service.delete_faceid_by_user_id(user_id)
-    if not result['success']:
-        return jsonify(result), 200
-        
-    return jsonify({"success": True}), 200
+    except Exception as e:
+        return jsonify(get_error_response('INVALID_REQUEST', str(e))), 200

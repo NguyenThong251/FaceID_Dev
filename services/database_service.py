@@ -9,10 +9,10 @@ import numpy as np
 class DatabaseService:
     # MySQL Configuration
     DB_CONFIG = {
-        'host': '127.0.0.1',
-        'user': 'vtiger',
-        'password': '',
-        'database': 'vtiger',
+       'host': '127.0.0.1',
+        'user': 'vtigernew',
+        'password': 'jt5pbdnW772iMhrj',
+        'database': 'vtigernew',
         'pool_name': 'mypool',
         'pool_size': 5
     }
@@ -23,7 +23,7 @@ class DatabaseService:
     def get_connection(self):
         return self.connection_pool.get_connection()
 
-    def check_user_exists(self, user_id: str) -> Dict:
+    def check_user_exists(self, user_id: str) -> bool:
         """Check if user already has registered face features"""
         try:
             with self.get_connection() as conn:
@@ -32,12 +32,11 @@ class DatabaseService:
                         "SELECT 1 FROM vtiger_timekeeping_face WHERE owner = %s LIMIT 1", 
                         (user_id,)
                     )
-                    exists = cursor.fetchone() is not None
-                    return {"success": True, "exists": exists}
+                    return cursor.fetchone() is not None
         except Exception as e:
-            return {"success": False, "error": {"message": "DB_CHECK_ERROR"}}
+            return False
 
-    def save_face_features(self, user_id: str, images: str, features: str, gender: str = None) -> Dict:
+    def save_face_features(self, user_id: str, images: str, features: str, gender: str = None) -> bool:
         """Save user's face features, images and gender information to database"""
         try:
             with self.get_connection() as conn:
@@ -52,11 +51,11 @@ class DatabaseService:
                     )
                     conn.commit()
                     redis_service.cache_face_features(user_id, features)
-                    return {"success": True}
+                    return True
         except Exception as e:
-            return {"success": False, "error": {"message": "DB_SAVE_ERROR"}}
+            return False
 
-    def get_stored_features(self, user_id: str) -> Dict:
+    def get_stored_features(self, user_id: str) ->  Optional[str]:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cursor:
@@ -72,12 +71,12 @@ class DatabaseService:
                     )
                     row = cursor.fetchone()
                     if row is None:
-                        return {"success": False, "error": {"message": "FEATURES_NOT_FOUND"}}
-                    return {"success": True, "features": row[0]}
+                        return None
+                    return row[0]
         except Exception as e:
-            return {"success": False, "error": {"message": "DB_GET_ERROR"}}
+            return None
 
-    def delete_faceid_by_user_id(self, user_id: str) -> Dict:
+    def delete_faceid_by_user_id(self, user_id: str) -> bool:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cursor:
@@ -86,14 +85,14 @@ class DatabaseService:
                         (user_id,)
                     )
                     conn.commit()
-                    return {"success": True}
+                    return True
         except Exception as e:
-            return {"success": False, "error": {"message": "DB_DELETE_ERROR"}}
+            return False
 
 
     
 # v2 vector face
-    def get_all_face_features(self) -> Dict:
+    def get_all_face_features(self) -> List[Tuple[str, np.ndarray]]:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cursor:
@@ -110,19 +109,19 @@ class DatabaseService:
                         redis_service.cache_face_features(user_id, features)
                         feature_array = np.array(json.loads(features)[0]) 
                         face_data.append((user_id, feature_array))
-                    return {"success": True, "features": face_data}
+                    return face_data
         except Exception as e:
-            return {"success": False, "error": {"message": "DB_GET_ERROR"}}
+            return []
 
-    def build_face_index(self) -> Dict:
+    def build_face_index(self) -> Tuple[faiss.Index, List[str]]:
         try:
             face_data_result = self.get_all_face_features()
-            if not face_data_result['success']:
+            if not face_data_result:
                 return face_data_result
 
             face_data = face_data_result['features']
             if not face_data:
-                return {"success": True, "index": None, "user_ids": []}
+                return []
 
             user_ids = [data[0] for data in face_data]
             features = np.array([data[1] for data in face_data])
@@ -130,25 +129,25 @@ class DatabaseService:
             index = faiss.IndexFlatL2(dimension) 
             index.add(features.astype('float32'))
             
-            return {"success": True, "index": index, "user_ids": user_ids}
+            return {"index": index, "user_ids": user_ids}
         except Exception as e:
-            return {"success": False, "error": {"message": "INDEX_BUILD_ERROR"}}
+            return []
 
-    def search_similar_faces(self, query_feature: np.ndarray, k: int = 5) -> Dict:
+    def search_similar_faces(self, query_feature: np.ndarray, k: int = 5) ->  List[Tuple[str, float]]:
         try:
             face_data = []
             redis_features = redis_service.get_all_face_features()
             
-            if redis_features['success']:
-                face_data = redis_features['features']
+            if redis_features:
+                face_data = redis_features
             else:  
                 face_data_result = self.get_all_face_features()
-                if not face_data_result['success']:
+                if not face_data_result:
                     return face_data_result
-                face_data = face_data_result['features']
+                face_data = face_data_result
 
             if not face_data:
-                return {"success": True, "results": []}
+                return []
 
             user_ids = [data[0] for data in face_data]
             features = np.array([data[1] for data in face_data])
@@ -163,7 +162,7 @@ class DatabaseService:
                     similarity = 1 / (1 + distance)  # Chuyển đổi khoảng cách thành độ tương đồng
                     results.append((user_ids[idx], float(similarity)))
             
-            return {"success": True, "results": results}
+            return results
         except Exception as e:
-            return {"success": False, "error": {"message": "FACE_SEARCH_ERROR"}}
+            return []
 db_service = DatabaseService() 
