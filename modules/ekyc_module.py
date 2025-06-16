@@ -1,5 +1,6 @@
 from flask import jsonify, request
 import json
+import asyncio
 from services.database_service import db_service
 from services.redis_service import redis_service
 from utils.image_utils import base64_to_rgb_image
@@ -20,33 +21,40 @@ def get_error_response(error_code, details=None):
         response['error']['details'] = details
     return response
 
-def handle_check_liveness(data):
+async def handle_check_liveness(data):
     if not (data and data.get('frame') and data.get('userId')):
         return jsonify(get_error_response('MISSING_FIELDS')), 200
     
     user_id = data['userId']
     challenge = data.get('challenge', '')
     
-    if challenge and db_service.check_user_exists(user_id):
-        return jsonify(get_error_response('FACE_ALREADY_REGISTERED')), 200
+    # Check user existence asynchronously
+    if challenge:
+        user_exists = await asyncio.to_thread(db_service.check_user_exists, user_id)
+        if user_exists:
+            return jsonify(get_error_response('FACE_ALREADY_REGISTERED')), 200
     
-    frame = base64_to_rgb_image(data['frame'], max_size=224)
+    # Process image asynchronously
+    frame = await asyncio.to_thread(base64_to_rgb_image, data['frame'], 224)
     if frame is None:
         return jsonify(get_error_response('INVALID_IMAGE')), 200
         
-    result = ekyc_service.check_liveness(frame, challenge, user_id)
+    # Check liveness asynchronously
+    result = await asyncio.to_thread(ekyc_service.check_liveness, frame, challenge, user_id)
     
     if result['success'] and challenge:
-        redis_service.store_temp_image(user_id, challenge, data['frame'])    
+        # Store image asynchronously
+        await asyncio.to_thread(redis_service.store_temp_image, user_id, challenge, data['frame'])    
     
     return jsonify(result), 200
 
-def handle_register_face(data):
+async def handle_register_face(data):
     user_id = data.get('userId')
     if not user_id:
         return jsonify(get_error_response('USER_ID_REQUIRED')), 200
     
-    temp_images = redis_service.get_temp_images(user_id)
+    # Get temp images asynchronously
+    temp_images = await asyncio.to_thread(redis_service.get_temp_images, user_id)
     if not temp_images:
         return jsonify(get_error_response('NO_TEMP_IMAGES')), 200
     
@@ -57,29 +65,45 @@ def handle_register_face(data):
         })), 200
     
     images = [temp_images[c] for c in VALID_CHALLENGES]
+    
+    # Process images in parallel
+    async def process_image(img_data):
+        frame = await asyncio.to_thread(base64_to_rgb_image, img_data)
+        if frame is None:
+            return None
+        feature = await asyncio.to_thread(ekyc_service.extract_face_features, frame)
+        return frame, feature.tolist() if feature is not None else None
+    
+    # Process all images concurrently
+    results = await asyncio.gather(*[process_image(img) for img in images])
+    
     frames = []
     features = []
-    
-    for img_data in images:
-        frame = base64_to_rgb_image(img_data)
+    for frame, feature in results:
         if frame is None:
             return jsonify(get_error_response('INVALID_IMAGE')), 200
         frames.append(frame)
-    
-    verification_result = ekyc_service.verify_registration_faces(frames)
-    if not verification_result['success']:
-        return jsonify(get_error_response('FACE_VERIFICATION_FAILED', verification_result['error'])), 200
-    
-    for frame in frames:
-        feature = ekyc_service.extract_face_features(frame)
         if feature is not None:
-            features.append(feature.tolist())
+            features.append(feature)
     
     if not features:
         return jsonify(get_error_response('FEATURE_EXTRACTION_FAILED')), 200
     
-    db_service.save_face_features(user_id, json.dumps(images), json.dumps(features))
-    redis_service.delete_temp_images(user_id)
+    # Verify faces asynchronously
+    verification_result = await asyncio.to_thread(
+        ekyc_service.verify_registration_faces, frames
+    )
+    if not verification_result['success']:
+        return jsonify(get_error_response('FACE_VERIFICATION_FAILED', verification_result['error'])), 200
+    
+    # Save data asynchronously
+    await asyncio.to_thread(
+        db_service.save_face_features,
+        user_id,
+        json.dumps(images),
+        json.dumps(features)
+    )
+    await asyncio.to_thread(redis_service.delete_temp_images, user_id)
     
     return jsonify({
         "success": True,
@@ -89,7 +113,7 @@ def handle_register_face(data):
         }
     }), 200
 
-def handle_ocr(data):
+async def handle_ocr(data):
     if not data:
         return jsonify(get_error_response('INVALID_REQUEST')), 200
     
@@ -103,46 +127,66 @@ def handle_ocr(data):
     
     is_pdf = data.get('is_pdf', data.get('isPdf', False))
     prompt = data.get('prompt')
-    result = gemini_ocr_service.process_ocr(file_data, prompt, is_pdf)
+    
+    # Process OCR asynchronously
+    result = await asyncio.to_thread(
+        gemini_ocr_service.process_ocr,
+        file_data,
+        prompt,
+        is_pdf
+    )
     
     return jsonify(result), 200
 
-def handle_search_face(data):
+async def handle_search_face(data):
     if not data or 'frame' not in data:
         return jsonify(get_error_response('MISSING_FIELDS')), 200
     
-    frame = base64_to_rgb_image(data['frame'], max_size=224)
+    # Process image asynchronously
+    frame = await asyncio.to_thread(base64_to_rgb_image, data['frame'], 224)
     if frame is None:
         return jsonify(get_error_response('INVALID_IMAGE')), 200
     
     top_k = int(data.get('top_k', 1))
-    result = ekyc_service.search_face(frame, top_k=top_k)
+    # Search face asynchronously
+    result = await asyncio.to_thread(ekyc_service.search_face, frame, top_k=top_k)
     return jsonify(result), 200
 
-def handle_delete_temp_images_id(data):
+async def handle_delete_temp_images_id(data):
     if not data or 'userId' not in data:
         return jsonify(get_error_response('USER_ID_REQUIRED')), 200
     user_id = data['userId']
-    redis_service.delete_temp_images(user_id)
+    # Delete temp images asynchronously
+    await asyncio.to_thread(redis_service.delete_temp_images, user_id)
     return jsonify({"success": True}), 200
 
-def handle_delete_face_id(data):
+async def handle_delete_face_id(data):
     if not data or 'userId' not in data:
         return jsonify(get_error_response('USER_ID_REQUIRED')), 200
         
     user_id = data['userId']
     user_admin_id = request.user_id
-    is_user = db_service.check_user_exists(user_id)
+    
+    # Check user and admin status asynchronously
+    is_user, is_admin = await asyncio.gather(
+        asyncio.to_thread(db_service.check_user_exists, user_id),
+        asyncio.to_thread(db_service.is_admin, user_admin_id)
+    )
+    
     if not is_user:
         return jsonify(get_error_response('USER_NOT_FOUND')), 200
-    is_admin = db_service.is_admin(user_admin_id)
     if not is_admin:
         return jsonify(get_error_response('PERMISSION_DENIED')), 200
+        
     try:
-        redis_success = redis_service.delete_cached_features(user_id)
+        # Delete data asynchronously
+        redis_success, db_success = await asyncio.gather(
+            asyncio.to_thread(redis_service.delete_cached_features, user_id),
+            asyncio.to_thread(db_service.delete_faceid_by_user_id, user_id)
+        )
+        
         if not redis_success:
             return jsonify(get_error_response('REDIS_DELETE_ERROR')), 200
-        db_success = db_service.delete_faceid_by_user_id(user_id)
         if not db_success:
             return jsonify(get_error_response('DB_DELETE_ERROR')), 200
             

@@ -1,20 +1,40 @@
 from flask import Blueprint, request, jsonify
 from .middleware import require_auth
 from modules import route_handlers
+import asyncio
 
 erp_face_bp = Blueprint('erp-api-ekyc', __name__)
 
 @erp_face_bp.route('/', methods=['POST'])
 @require_auth
-def handle_request():
+async def handle_request():
     try:
         data = request.get_json()
         if not data or '_operation' not in data:
             return jsonify({'success': False,'error': {'message': 'INVALID_OPERATION'}}, 200)
+            
         operation = data.pop('_operation', None)
         handler = route_handlers.get(operation)
+        
         if handler:
-            return handler(data)    
-        return jsonify({'success': False,'error': {'message': 'INVALID_OPERATION','details': f"Unknown operation: {operation}"}}), 200
+            # Handle both sync and async handlers
+            if asyncio.iscoroutinefunction(handler):
+                return await handler(data)
+            return handler(data)
+            
+        return jsonify({
+            'success': False,
+            'error': {
+                'message': 'INVALID_OPERATION',
+                'details': f"Unknown operation: {operation}"
+            }
+        }), 200
+        
     except Exception as e:
-        return jsonify({'success': False,'error': {'message': 'INVALID_REQUEST','details': str(e)}}), 200
+        return jsonify({
+            'success': False,
+            'error': {
+                'message': 'INVALID_REQUEST',
+                'details': str(e)
+            }
+        }), 200
