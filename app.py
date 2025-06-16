@@ -1,7 +1,7 @@
 from flask import Flask
 from routes.routes import erp_face_bp
 from flask_cors import CORS
-import config.model_config  # Import configuration
+import config.cpu_config as cpu_config  # Import configuration
 
 app = Flask(__name__)
 

@@ -35,3 +35,4 @@ def extract_face_box(box: np.ndarray, image: np.ndarray, margin: float = 0.2) ->
     x2 = min(image.shape[1], x2 + margin_pixels)
     y2 = min(image.shape[0], y2 + margin_pixels)
     return x1, y1, x2, y2 
+
