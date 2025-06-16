@@ -88,12 +88,11 @@ class RedisService:
             return True
         except Exception as e:
             return False
-
     def cache_face_features(self, user_id: str, features: str) -> None:
         """Cache face features for faster verification"""
         try:
             redis_key = f"ERP:FaceFeatures:{user_id}"
-            self.client.setex(redis_key, 3600, features)
+            self.client.set(redis_key, features) 
             return True
         except Exception as e:
             return False

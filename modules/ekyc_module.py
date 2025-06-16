@@ -1,4 +1,4 @@
-from flask import jsonify
+from flask import jsonify, request
 import json
 from services.database_service import db_service
 from services.redis_service import redis_service
@@ -131,10 +131,11 @@ def handle_delete_face_id(data):
         return jsonify(get_error_response('USER_ID_REQUIRED')), 200
         
     user_id = data['userId']
+    user_admin_id = request.user_id
     is_user = db_service.check_user_exists(user_id)
     if not is_user:
         return jsonify(get_error_response('USER_NOT_FOUND')), 200
-    is_admin = db_service.is_admin(user_id)
+    is_admin = db_service.is_admin(user_admin_id)
     if not is_admin:
         return jsonify(get_error_response('PERMISSION_DENIED')), 200
     try:

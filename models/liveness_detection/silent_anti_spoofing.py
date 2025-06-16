@@ -222,7 +222,7 @@ from typing import Tuple, Optional
 from models.anti_spoofs_control.anti_spoof_predict import AntiSpoofPredict
 from models.anti_spoofs_control.generate_patches import CropImage
 from models.anti_spoofs_control.utility import parse_model_name
-
+from config.settings import SCORE_ANTI_SPOOFING_THRESHOLD
 class SilentAntiSpoofing:
     def __init__(self, device_id: int = 0, model_dir: str = None):
         if model_dir is None:
@@ -233,7 +233,7 @@ class SilentAntiSpoofing:
         self.image_cropper = CropImage()
         self.real_threshold = 0.85
         self.fake_threshold = 0.65
-        self.final_confidence_threshold = 0.99
+        self.final_confidence_threshold = SCORE_ANTI_SPOOFING_THRESHOLD
         
         # Cache model paths
         self.model_paths = [(model_name, os.path.join(self.model_dir, model_name)) 

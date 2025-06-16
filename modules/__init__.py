@@ -13,6 +13,6 @@ route_handlers = {
     'RegisterFace': handle_register_face,
     'OCR': handle_ocr,
     'SearchFace': handle_search_face,
-    'ClearTempImagesId': handle_delete_temp_images_id,
-    'ClearFaceId': handle_delete_face_id
+    'DeleteTempImagesId': handle_delete_temp_images_id,
+    'DeleteFaceId': handle_delete_face_id
 } 
