@@ -14,9 +14,7 @@ def handle_request():
         operation = data.pop('_operation', None)
         handler = route_handlers.get(operation)
         if handler:
-            return handler(data)
-            
+            return handler(data)    
         return jsonify({'success': False,'error': {'message': 'INVALID_OPERATION','details': f"Unknown operation: {operation}"}}), 200
-
     except Exception as e:
         return jsonify({'success': False,'error': {'message': 'INVALID_REQUEST','details': str(e)}}), 200

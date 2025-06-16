@@ -194,6 +194,5 @@ class AntiSpoofPredict(Detection):
             return result
             
         except Exception as e:
-            print(f"Error in prediction: {str(e)}")
             gc.collect()
             raise e

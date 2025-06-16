@@ -4,6 +4,7 @@ import numpy as np
 import os
 
 from .utils.detect_face import detect_face, extract_face
+from config.model_config import load_model_weights
 
 
 class PNet(nn.Module):
@@ -46,6 +47,10 @@ class PNet(nn.Module):
         a = self.softmax4_1(a)
         b = self.conv4_2(x)
         return b, a
+
+    def load_weights(self, state_dict_path):
+        """Load model weights using the safe loading function"""
+        return load_model_weights(self, state_dict_path)
 
 
 class RNet(nn.Module):
@@ -95,6 +100,10 @@ class RNet(nn.Module):
         a = self.softmax5_1(a)
         b = self.dense5_2(x)
         return b, a
+
+    def load_weights(self, state_dict_path):
+        """Load model weights using the safe loading function"""
+        return load_model_weights(self, state_dict_path)
 
 
 class ONet(nn.Module):
@@ -152,6 +161,10 @@ class ONet(nn.Module):
         b = self.dense6_2(x)
         c = self.dense6_3(x)
         return b, c, a
+
+    def load_weights(self, state_dict_path):
+        """Load model weights using the safe loading function"""
+        return load_model_weights(self, state_dict_path)
 
 
 class MTCNN(nn.Module):

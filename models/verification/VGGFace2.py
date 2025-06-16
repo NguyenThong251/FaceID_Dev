@@ -3,6 +3,7 @@ import os
 import torch
 from torch import nn
 from torch.nn import functional as F
+from config.model_config import load_model_weights
 
 
 class BasicConv2d(nn.Module):
@@ -280,6 +281,10 @@ class InceptionResnetV1(nn.Module):
             x = F.normalize(x, p=2, dim=1)
         return x
 
+    def load_weights(self, state_dict_path):
+        """Load model weights using the safe loading function"""
+        return load_model_weights(self, state_dict_path)
+
 
 class VGGFace2:
     @staticmethod
@@ -294,9 +299,8 @@ class VGGFace2:
         model.eval()
         if pretrained:
             state_dict_path = os.path.join(os.path.dirname(__file__), pretrained)
-            model.load_state_dict(torch.load(state_dict_path, map_location= 'cpu'))
-            print('Weights loaded successfully from path:', state_dict_path)
-            print('====================================================')
+            model.load_weights(state_dict_path)
+
             
         return model
 

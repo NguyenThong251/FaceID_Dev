@@ -68,10 +68,7 @@ def load_model(pretrained = 'weights/vggface_weights.pt', device = 'cpu'):
     
     if pretrained:
         state_dict_path = os.path.join(os.path.dirname(__file__), pretrained)
-        model.load_state_dict(torch.load(state_dict_path, map_location= 'cpu'))
-        # print('Weights loaded successfully from path:', state_dict_path)
-        # print('====================================================')
-        
+        model.load_state_dict(torch.load(state_dict_path, map_location= 'cpu'))   
     return model
 
 if __name__ == '__main__':

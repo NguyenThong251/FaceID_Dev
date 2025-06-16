@@ -41,9 +41,7 @@ class TrainMain:
         self.schedule_lr = optim.lr_scheduler.MultiStepLR(
             self.optimizer, self.conf.milestones, self.conf.gamma, - 1)
 
-        print("lr: ", self.conf.lr)
-        print("epochs: ", self.conf.epochs)
-        print("milestones: ", self.conf.milestones)
+      
 
     def _train_stage(self):
         self.model.train()
@@ -56,9 +54,6 @@ class TrainMain:
             if is_first:
                 self.writer = SummaryWriter(self.conf.log_path)
                 is_first = False
-            print('epoch {} started'.format(e))
-            print("lr: ", self.schedule_lr.get_lr())
-
             for sample, ft_sample, target in tqdm(iter(self.train_loader)):
                 imgs = [sample, ft_sample]
                 labels = target
