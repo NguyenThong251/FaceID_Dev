@@ -165,4 +165,13 @@ class DatabaseService:
             return results
         except Exception as e:
             return []
+    def is_admin(self, user_id: str) -> bool:
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT is_admin FROM vtiger_users WHERE id = %s", (user_id,))
+                    result = cursor.fetchone()
+                    return result[0] == 'on' if result else False
+        except Exception as e:
+            return False
 db_service = DatabaseService() 
