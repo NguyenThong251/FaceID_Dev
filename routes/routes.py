@@ -1,13 +1,14 @@
 from flask import Blueprint, request, jsonify
 from .middleware import require_auth
-from modules import route_handlers
+from . import route_handlers
 import asyncio
 
 erp_face_bp = Blueprint('erp-api-ekyc', __name__)
 
-@erp_face_bp.route('/', methods=['POST'])
+@erp_face_bp.route('/', methods=['POST'], strict_slashes=False)
+@erp_face_bp.route('', methods=['POST'], strict_slashes=False)
 @require_auth
-async def handle_request():
+def handle_request():
     try:
         data = request.get_json()
         if not data or '_operation' not in data:
@@ -19,7 +20,8 @@ async def handle_request():
         if handler:
             # Handle both sync and async handlers
             if asyncio.iscoroutinefunction(handler):
-                return await handler(data)
+                # Run async handler in event loop
+                return asyncio.run(handler(data))
             return handler(data)
             
         return jsonify({

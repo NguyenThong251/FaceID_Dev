@@ -194,3 +194,4 @@ async def handle_delete_face_id(data):
         
     except Exception as e:
         return jsonify(get_error_response('INVALID_REQUEST', str(e))), 200 
+
