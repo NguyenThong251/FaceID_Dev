@@ -1,12 +1,13 @@
-from flask import jsonify, request
+from flask import jsonify, request, send_file
 import json
 import asyncio
 from services.database_service import db_service
 from services.redis_service import redis_service
-from utils.image_utils import base64_to_rgb_image
+from utils.image_utils import base64_to_rgb_image, encode_image_key, decode_image_key
 from services.ekyc_service import eKYC_Service
-from config.settings import VALID_CHALLENGES
+from config.settings import VALID_CHALLENGES, API_SECRET_KEY
 from services.gemini_ocr_service import gemini_ocr_service
+import os
 
 ekyc_service = eKYC_Service()
 
@@ -48,35 +49,92 @@ async def handle_check_liveness(data):
     
     return jsonify(result), 200
 
+def create_pagination(data, page=1, limit=20):
+    total_hits = len(data)
+    total_pages = (total_hits + limit - 1) // limit
+    next_page = page + 1 if page < total_pages else False
+    start = (page - 1) * limit
+    end = start + limit
+    return {
+        "hits": data[start:end],
+        "totalHits": total_hits,
+        "totalPages": total_pages,
+        "nextPage": next_page,
+        "timeResponse": 0
+    }
+
+from flask import Blueprint
+report_bp = Blueprint('report', __name__)
+
+@report_bp.route('/api/report/users', methods=['GET'])
+def report_users():
+    page = int(request.args.get('page', 1))
+    limit = int(request.args.get('limit', 20))
+    users = redis_service.get_all_users()
+    data = []
+    for user_id in users:
+        # Lấy challenge đầu tiên làm đại diện
+        challenges = redis_service.get_user_images(user_id)
+        if not challenges:
+            challenges = VALID_CHALLENGES
+        challenge = challenges[0] if challenges else 'front'
+        key = encode_image_key(user_id, challenge)
+        url = f"/api/report/image?key={key}&secret={API_SECRET_KEY}"
+        data.append({"userId": user_id, "image": url})
+    return jsonify(create_pagination(data, page, limit))
+
+@report_bp.route('/api/report/user/<user_id>', methods=['GET'])
+def report_user_detail(user_id):
+    challenges = redis_service.get_user_images(user_id)
+    data = []
+    for challenge in challenges:
+        key = encode_image_key(user_id, challenge)
+        url = f"/api/report/image?key={key}&secret={API_SECRET_KEY}"
+        data.append({"challenge": challenge, "image": url})
+    return jsonify({"userId": user_id, "images": data})
+
+@report_bp.route('/api/report/image', methods=['GET'])
+def report_image():
+    key = request.args.get('key')
+    secret = request.args.get('secret')
+    if not key or not secret or secret != API_SECRET_KEY:
+        return jsonify({"success": False, "error": "UNAUTHORIZED"}), 401
+    decoded = decode_image_key(key)
+    if not decoded:
+        return jsonify({"success": False, "error": "INVALID_KEY"}), 400
+    user_id, challenge = decoded
+    image_path = redis_service.get_image_path(user_id, challenge)
+    if not image_path:
+        return jsonify({"success": False, "error": "IMAGE_NOT_FOUND"}), 404
+    return send_file(image_path, mimetype='image/jpeg')
+
 async def handle_register_face(data):
     user_id = data.get('userId')
     if not user_id:
         return jsonify(get_error_response('USER_ID_REQUIRED')), 200
-    
-    # Get temp images asynchronously
     temp_images = await asyncio.to_thread(redis_service.get_temp_images, user_id)
     if not temp_images:
         return jsonify(get_error_response('NO_TEMP_IMAGES')), 200
-    
     missing_challenges = [c for c in VALID_CHALLENGES if c not in temp_images]
     if missing_challenges:
         return jsonify(get_error_response('LIVENESS_CHALLENGES_INCOMPLETE', {
             'missing_challenges': missing_challenges
         })), 200
-    
     images = [temp_images[c] for c in VALID_CHALLENGES]
-    
-    # Process images in parallel
-    async def process_image(img_data):
+    async def process_image(img_data, challenge):
         frame = await asyncio.to_thread(base64_to_rgb_image, img_data)
         if frame is None:
-            return None
+            return None, None
         feature = await asyncio.to_thread(ekyc_service.extract_face_features, frame)
+        # Lưu ảnh vào storage/faces
+        faces_dir = "storage/faces"
+        if not os.path.exists(faces_dir):
+            os.makedirs(faces_dir)
+        image_path = os.path.join(faces_dir, f"{user_id}_{challenge}.jpg")
+        import cv2
+        cv2.imwrite(image_path, cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
         return frame, feature.tolist() if feature is not None else None
-    
-    # Process all images concurrently
-    results = await asyncio.gather(*[process_image(img) for img in images])
-    
+    results = await asyncio.gather(*[process_image(img, c) for img, c in zip(images, VALID_CHALLENGES)])
     frames = []
     features = []
     for frame, feature in results:
@@ -85,18 +143,13 @@ async def handle_register_face(data):
         frames.append(frame)
         if feature is not None:
             features.append(feature)
-    
     if not features:
         return jsonify(get_error_response('FEATURE_EXTRACTION_FAILED')), 200
-    
-    # Verify faces asynchronously
     verification_result = await asyncio.to_thread(
         ekyc_service.verify_registration_faces, frames
     )
     if not verification_result['success']:
         return jsonify(get_error_response('FACE_VERIFICATION_FAILED', verification_result['error'])), 200
-    
-    # Save data asynchronously
     await asyncio.to_thread(
         db_service.save_face_features,
         user_id,
@@ -104,7 +157,7 @@ async def handle_register_face(data):
         json.dumps(features)
     )
     await asyncio.to_thread(redis_service.delete_temp_images, user_id)
-    
+    await asyncio.to_thread(redis_service.delete_cached_userInfo, user_id)
     return jsonify({
         "success": True,
         "result": {
@@ -194,4 +247,45 @@ async def handle_delete_face_id(data):
         
     except Exception as e:
         return jsonify(get_error_response('INVALID_REQUEST', str(e))), 200 
+
+# Logic cho operation
+def report_users_op(data):
+    page = int(data.get('page', 1))
+    limit = int(data.get('limit', 20))
+    users = redis_service.get_all_users()
+    result = []
+    for user_id in users:
+        challenges = redis_service.get_user_images(user_id)
+        if not challenges:
+            challenges = VALID_CHALLENGES
+        challenge = challenges[0] if challenges else 'front'
+        key = encode_image_key(user_id, challenge)
+        url = f"/api/report/image?key={key}&secret={API_SECRET_KEY}"
+        result.append({"userId": user_id, "image": url})
+    return create_pagination(result, page, limit)
+
+def report_user_detail_op(data):
+    user_id = data.get('userId')
+    challenges = redis_service.get_user_images(user_id)
+    result = []
+    for challenge in challenges:
+        key = encode_image_key(user_id, challenge)
+        url = f"/api/report/image?key={key}&secret={API_SECRET_KEY}"
+        result.append({"challenge": challenge, "image": url})
+    return {"userId": user_id, "images": result}
+
+def report_image_op(data):
+    key = data.get('key')
+    secret = data.get('secret')
+    if not key or not secret or secret != API_SECRET_KEY:
+        return {"success": False, "error": "UNAUTHORIZED"}
+    decoded = decode_image_key(key)
+    if not decoded:
+        return {"success": False, "error": "INVALID_KEY"}
+    user_id, challenge = decoded
+    image_path = redis_service.get_image_path(user_id, challenge)
+    if not image_path:
+        return {"success": False, "error": "IMAGE_NOT_FOUND"}
+    # Trả về path hoặc base64, hoặc chỉ thông tin file (tùy bạn muốn)
+    return {"success": True, "image_path": image_path}
 
