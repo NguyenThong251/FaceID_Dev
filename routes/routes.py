@@ -1,7 +1,10 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from .middleware import require_auth
 from . import route_handlers
 import asyncio
+from services.storage_service import storage_service
+from utils.image_utils import decode_image_key
+import os
 
 erp_face_bp = Blueprint('erp-api-ekyc', __name__)
 
@@ -13,14 +16,10 @@ def handle_request():
         data = request.get_json()
         if not data or '_operation' not in data:
             return jsonify({'success': False,'error': {'message': 'INVALID_OPERATION'}}, 200)
-            
         operation = data.pop('_operation', None)
         handler = route_handlers.get(operation)
-        
         if handler:
-            # Handle both sync and async handlers
             if asyncio.iscoroutinefunction(handler):
-                # Run async handler in event loop
                 return asyncio.run(handler(data))
             return handler(data)
             
@@ -40,3 +39,16 @@ def handle_request():
                 'details': str(e)
             }
         }), 200
+
+@erp_face_bp.route('/image/face', methods=['GET'])
+def report_image():
+    key = request.args.get('key')
+    if not key:
+        return jsonify({"success": False, "error": "UNAUTHORIZED"}), 200
+    filename = decode_image_key(key)
+    if not filename:
+        return jsonify({"success": False, "error": "INVALID_KEY"}), 200
+    image_path = os.path.join(storage_service.faces_dir, filename)
+    if not os.path.exists(image_path):
+        return jsonify({"success": False, "error": "IMAGE_NOT_FOUND"}), 200
+    return send_file(image_path, mimetype='image/jpeg')

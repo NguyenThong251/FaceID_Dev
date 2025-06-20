@@ -4,7 +4,6 @@ import numpy as np
 from typing import Optional, Dict, List, Tuple
 from flask import jsonify
 import os
-from utils.image_utils import save_image
 
 class RedisService:
     # Redis Configuration
@@ -90,6 +89,7 @@ class RedisService:
             return True
         except Exception as e:
             return False
+
     def cache_face_features(self, user_id: str, features: str) -> None:
         """Cache face features for faster verification"""
         try:
@@ -117,6 +117,7 @@ class RedisService:
             return True
         except Exception as e:
             return False
+
     def delete_cached_userInfo(self, user_id: str) -> None:
         try:
             redis_key = f"ERP:Users:{user_id}"
@@ -124,7 +125,7 @@ class RedisService:
             return True
         except Exception as e:
             return False
-    # v2 vector face
+
     def get_all_face_features(self) -> List[Tuple[str, np.ndarray]]:
         """Lấy tất cả face features từ Redis"""
         try:
@@ -148,49 +149,5 @@ class RedisService:
         except Exception as e:
             return []
 
-    def get_all_users(self) -> list:
-        """Lấy danh sách userId đã đăng ký (dựa vào Redis key ảnh)."""
-        try:
-            pattern = "ERP:FaceFeatures:*"
-            keys = self.client.keys(pattern)
-            return [key.split(":")[-1] for key in keys]
-        except Exception:
-            return []
-
-    def get_user_images(self, user_id: str) -> list:
-        """Lấy danh sách challenge đã lưu ảnh cho userId."""
-        try:
-            redis_key = f"ERP:TempFaceInfo:{user_id}"
-            temp_data = self.client.get(redis_key)
-            if temp_data:
-                temp_images = json.loads(temp_data)
-                return list(temp_images.keys())
-            # Nếu không có trong Redis, kiểm tra file storage
-            faces_dir = "storage/faces"
-            if not os.path.exists(faces_dir):
-                return []
-            files = os.listdir(faces_dir)
-            challenges = []
-            for f in files:
-                if f.startswith(f"{user_id}_") and f.endswith(".jpg"):
-                    challenge = f[len(user_id)+1:-4]
-                    challenges.append(challenge)
-            return challenges
-        except Exception:
-            return []
-
-    def get_image_path(self, user_id: str, challenge: str) -> str:
-        """Trả về path ảnh dựa vào userId và challenge."""
-        faces_dir = "storage/faces"
-        image_path = os.path.join(faces_dir, f"{user_id}_{challenge}.jpg")
-        if os.path.exists(image_path):
-            return image_path
-        return None
-
 # Create singleton instance
 redis_service = RedisService() 
-
-# Trong process_image hoặc sau khi có frame:
-image_path = f"storage/faces/{user_id}_{challenge}.jpg"
-save_image(frame, image_path)
-# Lưu image_path vào DB/Redis nếu cần 

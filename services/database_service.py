@@ -174,4 +174,29 @@ class DatabaseService:
                     return result[0] == 'on' if result else False
         except Exception as e:
             return False
+
+    def get_all_users_face(self) -> List[Dict]:
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor(dictionary=True) as cursor:
+                    cursor.execute(
+                        """
+                        SELECT owner, created_at 
+                        FROM vtiger_timekeeping_face 
+                        ORDER BY created_at DESC
+                        """
+                    )
+                    results = cursor.fetchall()
+                    users = []
+                    for row in results:
+                        user = {
+                            'userId': row['owner'],
+                            'timecreate': row['created_at'].isoformat() if row['created_at'] else None
+                        }
+                        users.append(user)
+                    return users
+        except Exception as e:
+            print(f"Error in get_all_users_face: {e}")
+            return []
+
 db_service = DatabaseService() 

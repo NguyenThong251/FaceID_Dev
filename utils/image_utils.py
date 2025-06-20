@@ -1,10 +1,7 @@
 import base64
 import cv2 as cv
 import numpy as np
-from typing import Tuple
-import hmac
-import hashlib
-from config.settings import API_SECRET_KEY
+from typing import Tuple, Optional
 
 def base64_to_rgb_image(base64_string: str, max_size: int = 224) -> np.ndarray:
     try:
@@ -44,20 +41,12 @@ def extract_face_box(box: np.ndarray, image: np.ndarray, margin: float = 0.2) ->
     
     return x1, y1, x2, y2
 
-def encode_image_key(user_id: str, challenge: str) -> str:
-    """Tạo key bảo mật cho ảnh dựa trên user_id, challenge và secret key."""
-    raw = f"{user_id}:{challenge}".encode()
-    secret = API_SECRET_KEY.encode()
-    return hmac.new(secret, raw, hashlib.sha256).hexdigest() + f":{user_id}:{challenge}"
+def encode_image_key(filename: str) -> str:
+    return base64.urlsafe_b64encode(filename.encode()).decode()
 
-def decode_image_key(key: str) -> tuple:
-    """Giải mã key ảnh, trả về (user_id, challenge) nếu hợp lệ, ngược lại trả về None."""
+def decode_image_key(key: str) -> Optional[str]:
     try:
-        hash_part, user_id, challenge = key.split(":", 2)
-        expected = encode_image_key(user_id, challenge)
-        if expected.split(":")[0] == hash_part:
-            return user_id, challenge
-        return None
+        return base64.urlsafe_b64decode(key.encode()).decode()
     except Exception:
         return None
 

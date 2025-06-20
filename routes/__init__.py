@@ -4,7 +4,8 @@ from modules.ekyc_module import (
     handle_ocr,
     handle_search_face,
     handle_delete_temp_images_id,
-    handle_delete_face_id
+    handle_delete_face_id,
+    report_users_face,
 )
 
 # Define route handlers mapping
@@ -14,5 +15,6 @@ route_handlers = {
     'OCR': handle_ocr,
     'SearchFace': handle_search_face,
     'DeleteTempImagesId': handle_delete_temp_images_id,
-    'DeleteFaceId': handle_delete_face_id
+    'DeleteFaceId': handle_delete_face_id,
+    'ReportUsersFace': report_users_face,
 } 

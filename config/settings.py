@@ -1,4 +1,5 @@
 API_SECRET_KEY = "ERPA2Ah44CuOfgFCoiqYEVCDtqPLfIYGsQw"
+BASE_URL = "https://face.anhouse.asia/erp-api-ekyc/api"
 
 # Service Configuration
 MAX_WORKERS = 3  # Maximum number of parallel workers

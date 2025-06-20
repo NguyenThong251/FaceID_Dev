@@ -1,5 +1,5 @@
 from flask import Flask
-from routes.routes import erp_face_bp
+from routes.routes import erp_face_bp # Import erp_face_bp và report_bp
 from flask_cors import CORS
 import config.cpu_config as cpu_config  # Import configuration
 
