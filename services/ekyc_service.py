@@ -1,4 +1,3 @@
-
 import torch
 import numpy as np
 from PIL import Image
@@ -58,7 +57,6 @@ class eKYC_Service:
                 return {'success': False, 'error': {'message': 'MASK_CHECK_FAILED'}}
             
             if mask_result['has_mask']:
-                print(f"[LIVENESS] Mask detected {mask_result['has_mask']}")
                 return {'success': False, 'error': {'message': 'MASK_DETECTED'}}
 
             is_real, spoof_score = self.anti_spoofing.detect(frame)
@@ -234,5 +232,3 @@ class eKYC_Service:
             return {'success': False, 'error': {'message': 'SYSTEM_ERROR'}}
 
 ekyc_service = eKYC_Service() 
-
-
