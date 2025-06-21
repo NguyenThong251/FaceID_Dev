@@ -143,7 +143,6 @@ async def handle_search_face(data):
         return jsonify(get_error_response('INVALID_IMAGE')), 200
     
     top_k = int(data.get('top_k', 1))
-    # Search face asynchronously
     result = await asyncio.to_thread(ekyc_service.search_face, frame, top_k=top_k)
     return jsonify(result), 200
 
@@ -151,7 +150,6 @@ async def handle_delete_temp_images_id(data):
     if not data or 'userId' not in data:
         return jsonify(get_error_response('USER_ID_REQUIRED')), 200
     user_id = data['userId']
-    # Delete temp images asynchronously
     await asyncio.to_thread(redis_service.delete_temp_images, user_id)
     return jsonify({"success": True}), 200
 
@@ -159,11 +157,9 @@ async def handle_delete_face_id(data):
     user_id = data.get('userId')
     admin_id = data.get('adminId')
 
-    # Kiểm tra các trường bắt buộc
     if not user_id or not admin_id:
         return jsonify(get_error_response('MISSING_FIELDS', 'userId and adminId are required')), 200
         
-    # Kiểm tra sự tồn tại của user và quyền của admin
     is_user_exist = await asyncio.to_thread(db_service.check_user_exists, user_id)
     is_admin = await asyncio.to_thread(db_service.is_admin, admin_id)
     
@@ -173,22 +169,18 @@ async def handle_delete_face_id(data):
         return jsonify(get_error_response('PERMISSION_DENIED')), 200
         
     try:
-        # Thực hiện xóa song song
         db_success, redis_success, storage_success = await asyncio.gather(
             asyncio.to_thread(db_service.delete_faceid_by_user_id, user_id),
             asyncio.to_thread(redis_service.delete_cached_features, user_id),
             asyncio.to_thread(storage_service.delete_user_images, user_id)
         )
         
-        # Kiểm tra kết quả
         if not db_success:
             return jsonify(get_error_response('DB_DELETE_ERROR')), 200
         if not redis_success:
-            # Log lỗi Redis nhưng không chặn kết quả thành công
-            print(f"Warning: Failed to delete cached features for user {user_id}")
+            return jsonify(get_error_response('REDIS_DELETE_ERROR')), 200
         if not storage_success:
-            # Log lỗi storage nhưng không chặn kết quả thành công
-            print(f"Warning: Failed to delete images from storage for user {user_id}")
+            return jsonify(get_error_response('STORAGE_DELETE_ERROR')), 200
 
         return jsonify({"success": True, "message": "Face ID cleared successfully"}), 200
         

@@ -147,4 +147,3 @@ class SilentAntiSpoofing:
 
         except Exception:
             return False, 1.0, image
-

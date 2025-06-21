@@ -185,7 +185,8 @@ class AntiSpoofPredict(Detection):
             self.model.eval()
             with torch.no_grad():
                 result = self.model.forward(img)
-                result = F.softmax(result).numpy()
+                # Fix: Add dim=1 parameter to softmax to specify the dimension
+                result = F.softmax(result, dim=1).numpy()
             
             # Cleanup
             del img
