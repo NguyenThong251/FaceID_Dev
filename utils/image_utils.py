@@ -1,7 +1,9 @@
 import base64
 import cv2 as cv
 import numpy as np
+# report dev start
 from typing import Tuple, Optional
+# report dev end
 
 def base64_to_rgb_image(base64_string: str, max_size: int = 224) -> np.ndarray:
     try:
@@ -41,6 +43,10 @@ def extract_face_box(box: np.ndarray, image: np.ndarray, margin: float = 0.2) ->
     
     return x1, y1, x2, y2
 
+
+
+
+# report dev start
 def encode_image_key(filename: str) -> str:
     return base64.urlsafe_b64encode(filename.encode()).decode()
 
@@ -49,4 +55,4 @@ def decode_image_key(key: str) -> Optional[str]:
         return base64.urlsafe_b64decode(key.encode()).decode()
     except Exception:
         return None
-
+# report dev end

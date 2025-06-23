@@ -1,10 +1,14 @@
+# report dev start
 from flask import Blueprint, request, jsonify, send_file
+# report dev end
 from .middleware import require_auth
 from . import route_handlers
 import asyncio
+# report dev start
 from services.storage_service import storage_service
 from utils.image_utils import decode_image_key
 import os
+# report dev end    
 
 erp_face_bp = Blueprint('erp-api-ekyc', __name__)
 
@@ -40,6 +44,7 @@ def handle_request():
             }
         }), 200
 
+# report dev start
 @erp_face_bp.route('/image/face', methods=['GET'])
 def report_image():
     key = request.args.get('key')
@@ -52,3 +57,4 @@ def report_image():
     if not os.path.exists(image_path):
         return jsonify({"success": False, "error": "IMAGE_NOT_FOUND"}), 200
     return send_file(image_path, mimetype='image/jpeg')
+# report dev end

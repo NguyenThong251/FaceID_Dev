@@ -4,12 +4,13 @@ import asyncio
 from services.database_service import db_service
 from services.redis_service import redis_service
 from services.storage_service import storage_service
+# report dev start
 from utils.image_utils import base64_to_rgb_image, encode_image_key
-from services.ekyc_service import eKYC_Service
 from config.settings import VALID_CHALLENGES, BASE_URL
+# report dev end
+from services.ekyc_service import eKYC_Service
 from services.gemini_ocr_service import gemini_ocr_service
 import cv2
-
 ekyc_service = eKYC_Service()
 
 def get_error_response(error_code, details=None):
@@ -70,11 +71,11 @@ async def handle_register_face(data):
         if frame is None:
             return None, None
         feature = await asyncio.to_thread(ekyc_service.extract_face_features, frame)
-        
+        # report dev start
         # Lưu ảnh vào storage/faces với hash random để tăng bảo mật
         image_bytes = cv2.imencode('.jpg', cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))[1].tobytes()
         image_path = await asyncio.to_thread(storage_service.save_image, user_id, challenge, image_bytes)
-        
+        # report dev end
         return frame, feature.tolist() if feature is not None else None
     results = await asyncio.gather(*[process_image(img, c) for img, c in zip(images, VALID_CHALLENGES)])
     frames = []
@@ -153,21 +154,39 @@ async def handle_delete_temp_images_id(data):
     await asyncio.to_thread(redis_service.delete_temp_images, user_id)
     return jsonify({"success": True}), 200
 
-async def handle_delete_face_id(data):
-    user_id = data.get('userId')
-    admin_id = data.get('adminId')
 
-    if not user_id or not admin_id:
-        return jsonify(get_error_response('MISSING_FIELDS', 'userId and adminId are required')), 200
+
+# report dev start
+async def handle_delete_face_id(data):
+    # user_id = data.get('userId')
+    # admin_id = data.get('adminId')
+
+    # if not user_id or not admin_id:
+    #     return jsonify(get_error_response('MISSING_FIELDS', 'userId and adminId are required')), 200
         
-    is_user_exist = await asyncio.to_thread(db_service.check_user_exists, user_id)
-    is_admin = await asyncio.to_thread(db_service.is_admin, admin_id)
+    # is_user_exist = await asyncio.to_thread(db_service.check_user_exists, user_id)
+    # is_admin = await asyncio.to_thread(db_service.is_admin, admin_id)
     
-    if not is_user_exist:
+    # if not is_user_exist:
+    #     return jsonify(get_error_response('USER_NOT_FOUND')), 200
+    # if not is_admin:
+    #     return jsonify(get_error_response('PERMISSION_DENIED')), 200
+
+
+    if not data or 'userId' not in data:
+        return jsonify(get_error_response('USER_ID_REQUIRED')), 200
+
+    user_id = data['userId']
+    user_admin_id = request.user_id
+    is_user, is_admin = await asyncio.gather(
+        asyncio.to_thread(db_service.check_user_exists, user_id),
+        asyncio.to_thread(db_service.is_admin, user_admin_id)
+    )
+    if not is_user:
         return jsonify(get_error_response('USER_NOT_FOUND')), 200
     if not is_admin:
         return jsonify(get_error_response('PERMISSION_DENIED')), 200
-        
+
     try:
         db_success, redis_success, storage_success = await asyncio.gather(
             asyncio.to_thread(db_service.delete_faceid_by_user_id, user_id),
@@ -186,7 +205,12 @@ async def handle_delete_face_id(data):
         
     except Exception as e:
         return jsonify(get_error_response('INVALID_REQUEST', str(e))), 200
+# report dev end
 
+
+
+
+# report dev start
 # utility function
 def create_pagination(data, page=1, limit=20):
     total_hits = len(data)
@@ -229,3 +253,4 @@ def report_users_face(data):
         result.append(user_result)
     
     return create_pagination(result, page, limit)
+# report dev end

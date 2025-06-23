@@ -1,5 +1,7 @@
 API_SECRET_KEY = "ERPA2Ah44CuOfgFCoiqYEVCDtqPLfIYGsQw"
+# report dev start
 BASE_URL = "https://face.anhouse.asia/erp-api-ekyc/api"
+# report dev end
 
 # Service Configuration - Reduced for better stability under high load
 MAX_WORKERS = 3  # Reduced from 3 to 2 for better thread safety

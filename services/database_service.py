@@ -174,7 +174,7 @@ class DatabaseService:
                     return result[0] == 'on' if result else False
         except Exception as e:
             return False
-
+# report dev end
     def get_all_users_face(self) -> List[Dict]:
         try:
             with self.get_connection() as conn:
@@ -198,5 +198,5 @@ class DatabaseService:
         except Exception as e:
             print(f"Error in get_all_users_face: {e}")
             return []
-
+# report dev end
 db_service = DatabaseService() 

@@ -5,6 +5,7 @@ from modules.ekyc_module import (
     handle_search_face,
     handle_delete_temp_images_id,
     handle_delete_face_id,
+# report dev
     report_users_face,
 )
 
@@ -16,5 +17,6 @@ route_handlers = {
     'SearchFace': handle_search_face,
     'DeleteTempImagesId': handle_delete_temp_images_id,
     'DeleteFaceId': handle_delete_face_id,
+# report dev
     'ReportUsersFace': report_users_face,
 } 
