@@ -5,6 +5,7 @@ from tensorflow.keras.models import load_model
 import numpy as np
 import cv2
 import os
+# fix crash dev start
 import threading
 from pathlib import Path
 
@@ -82,3 +83,5 @@ class MaskDetectionService:
 mask_detection_service = MaskDetectionService()
 
 
+
+# fix crash dev end

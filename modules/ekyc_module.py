@@ -182,11 +182,12 @@ async def handle_delete_face_id(data):
         asyncio.to_thread(db_service.check_user_exists, user_id),
         asyncio.to_thread(db_service.is_admin, user_admin_id)
     )
+    # fix crash dev start
     if not is_user:
         return jsonify(get_error_response('USER_NOT_FOUND')), 200
     if not is_admin:
         return jsonify(get_error_response('PERMISSION_DENIED')), 200
-
+    # fix crash dev end
     try:
         db_success, redis_success, storage_success = await asyncio.gather(
             asyncio.to_thread(db_service.delete_faceid_by_user_id, user_id),
